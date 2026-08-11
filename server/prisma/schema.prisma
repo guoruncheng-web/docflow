@@ -343,6 +343,26 @@ model ModelCall {
   @@map("model_calls")
 }
 
+/// The mock destination's own records.
+///
+/// Kept in the database rather than in memory because the next request runs in
+/// a different container on Vercel, and a ledger that forgets between the send
+/// and the retry cannot demonstrate the one thing idempotency is for.
+model DestinationBill {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  idempotencyKey String   @unique @map("idempotency_key")
+  externalId     String   @map("external_id")
+  vendorName     String   @map("vendor_name")
+  invoiceNumber  String   @map("invoice_number")
+  currency       String
+  totalMinor     Int      @map("total_minor")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([organizationId, createdAt])
+  @@map("destination_bills")
+}
+
 /// Append-only from the application's point of view: the timeline the UI draws
 /// is read from here, not from optimistic browser state.
 model AuditEvent {
