@@ -13,7 +13,7 @@ is the version somebody approved — and delivering it twice creates one bill.
 - API docs (Swagger) — https://docflow-api-flame.vercel.app/api/docs
 - Health check — https://docflow-api-flame.vercel.app/api/health
 
-No sign-up: the workspace is private, disposable and deleted after a day.
+No sign-up: the workspace is private, disposable and deleted within a day or two of that.
 
 ## What you can do in the demo
 

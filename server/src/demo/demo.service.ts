@@ -6,6 +6,10 @@ import { AuthResponseDto } from '../auth/dto/auth.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { BlobService } from '../storage/blob.service';
 
+// A day, reaped by a daily job — so a workspace lives between 24 and 48 hours
+// rather than exactly 24. The Hobby plan allows one cron run a day, and a
+// promise of "deleted after a day" that is kept within a day of that is worth
+// more than a schedule the platform will not run.
 const SANDBOX_TTL_HOURS = 24;
 
 /**

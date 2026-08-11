@@ -21,7 +21,7 @@
     },
     {
       "path": "/api/internal/jobs/cleanup",
-      "schedule": "0 * * * *"
+      "schedule": "30 6 * * *"
     }
   ]
 }
