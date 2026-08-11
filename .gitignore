@@ -26,3 +26,8 @@ coverage/
 # Noise
 *.log
 .DS_Store
+
+# Dropped by the Neon integration CLI; not part of this project.
+.agents/
+.claude/
+skills-lock.json
