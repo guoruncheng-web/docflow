@@ -18,6 +18,10 @@
     {
       "path": "/api/health",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/internal/jobs/cleanup",
+      "schedule": "0 * * * *"
     }
   ]
 }

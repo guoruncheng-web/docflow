@@ -13,7 +13,7 @@
     "fixtures": "tsx scripts/build-fixtures.ts",
     "comment:test": "pdf.js is ESM only, so the tests that read a PDF need Node's module support inside Jest's VM.",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --config test/jest.json",
-    "vercel-build": "prisma generate && node scripts/copy-swagger-assets.mjs && nest build && node scripts/stage-fixtures.mjs"
+    "vercel-build": "prisma generate && tsx scripts/build-fixtures.ts && node scripts/copy-swagger-assets.mjs && nest build && node scripts/stage-fixtures.mjs"
   },
   "pnpm": {
     "comment": "pnpm blocks postinstall scripts by default. Prisma needs its to download the query engine, esbuild to unpack its platform binary.",

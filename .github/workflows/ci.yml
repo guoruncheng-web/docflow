@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    name: API — tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # Generates the client from the schema, which also fails the build if the
+      # schema itself is invalid.
+      - run: pnpm prisma generate
+
+      # The PDF tests read the sample invoices, which are generated rather than
+      # committed as binaries.
+      - run: pnpm fixtures
+
+      - run: pnpm test
+
+      - run: pnpm build
+
+  web:
+    name: Web — tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test
+
+      - run: pnpm build
+        env:
+          # Only needs to be a valid URL at build time; the real value comes
+          # from the Vercel project.
+          NEXT_PUBLIC_API_URL: https://docflow-api-flame.vercel.app/api

@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Headers, Post } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Headers } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiExcludeController, ApiOperation } from '@nestjs/swagger';
 import { DemoService } from '../demo/demo.service';
@@ -19,7 +19,9 @@ export class JobsController {
     private readonly demo: DemoService,
   ) {}
 
-  @Post('cleanup')
+  // A GET because that is what Vercel Cron issues, and it carries
+  // `Authorization: Bearer $CRON_SECRET` automatically when the variable is set.
+  @Get('cleanup')
   @ApiOperation({ summary: 'Delete expired demo workspaces and their stored files' })
   async cleanup(@Headers('authorization') authorization?: string) {
     this.assertCron(authorization);
