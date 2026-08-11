@@ -1,0 +1,10 @@
+# Vercel falls back to .gitignore only when this file is absent, so the exclusions
+# are repeated here. NEXT_PUBLIC_API_URL is inlined into the browser bundle at
+# build time and must come from the project's environment variables, not from a
+# local .env that happened to be uploaded.
+.env
+.env.*
+!.env.example
+
+node_modules
+.next
