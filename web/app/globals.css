@@ -702,3 +702,32 @@ button {
     border-bottom: 1px solid var(--line);
   }
 }
+
+@media (max-width: 620px) {
+  /*
+   * Two chips and two buttons do not fit beside the wordmark, and a top bar
+   * that pushes the page sideways takes the document with it. The workspace
+   * name goes first: the visitor knows whose workspace they are in, while the
+   * spend meter is the thing they came to watch move.
+   */
+  .topbar {
+    gap: var(--s2);
+    padding: 0 var(--s3);
+  }
+
+  .pill:not(.mono) {
+    display: none;
+  }
+
+  /* The page is as wide as it is; it scrolls inside the viewer rather than
+     dragging the whole layout along with it. */
+  .viewer {
+    padding: var(--s3);
+    justify-items: start;
+    overflow-x: auto;
+  }
+
+  .page-frame {
+    max-width: none;
+  }
+}
