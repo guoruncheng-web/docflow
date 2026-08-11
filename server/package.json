@@ -4,7 +4,7 @@
   "private": true,
   "description": "DocFlow API — document extraction, review and approval",
   "scripts": {
-    "build": "node scripts/copy-swagger-assets.mjs && nest build",
+    "build": "node scripts/copy-swagger-assets.mjs && nest build && node scripts/stage-fixtures.mjs",
     "start": "nest start",
     "dev": "node scripts/copy-swagger-assets.mjs && nest start --watch",
     "start:prod": "node dist/src/main",
@@ -13,7 +13,7 @@
     "fixtures": "tsx scripts/build-fixtures.ts",
     "comment:test": "pdf.js is ESM only, so the tests that read a PDF need Node's module support inside Jest's VM.",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --config test/jest.json",
-    "vercel-build": "prisma generate && node scripts/copy-swagger-assets.mjs && nest build"
+    "vercel-build": "prisma generate && node scripts/copy-swagger-assets.mjs && nest build && node scripts/stage-fixtures.mjs"
   },
   "pnpm": {
     "comment": "pnpm blocks postinstall scripts by default. Prisma needs its to download the query engine, esbuild to unpack its platform binary.",
@@ -52,6 +52,7 @@
     "@nestjs/testing": "^11.0.12",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
+    "@types/multer": "^2.2.0",
     "@types/node": "^22.13.9",
     "@types/passport-jwt": "^4.0.1",
     "jest": "^29.7.0",

@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DocumentReadError, PdfTextLayerAdapter, linesFrom, locateQuote, type WordBox } from './pdf-text';
 
-const fixture = (name: string) => join(__dirname, '..', '..', '..', 'fixtures', 'invoices', name);
+const fixture = (name: string) => join(__dirname, '..', '..', 'fixtures', 'invoices', name);
 
 const word = (text: string, x: number, y: number, width = text.length * 5, height = 10): WordBox => ({
   text,

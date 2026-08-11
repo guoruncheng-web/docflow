@@ -1,0 +1,14 @@
+# Vercel falls back to .gitignore only when this file is absent, so the exclusions
+# are repeated here explicitly. Local .env files must never reach the build: the
+# real values come from the project's environment variables, and an uploaded .env
+# would both leak credentials into the build image and silently take precedence
+# over them for anything that reads dotenv (Prisma does).
+.env
+.env.*
+!.env.example
+
+node_modules
+dist
+test
+coverage
+*.tsbuildinfo

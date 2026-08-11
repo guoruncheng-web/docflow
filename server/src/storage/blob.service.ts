@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { del, presignUrl, put } from '@vercel/blob';
+import { del, issueSignedToken, presignUrl, put } from '@vercel/blob';
 
 /**
  * Document storage.
@@ -52,9 +52,32 @@ export class BlobService {
     return { key, url: result.url };
   }
 
-  /** A read URL that expires, minted only after tenancy has been checked. */
-  async signedReadUrl(url: string): Promise<string> {
-    return presignUrl(url, { token: this.token, expiresIn: this.readTtlSeconds });
+  /**
+   * A read URL that expires, minted only after tenancy has been checked.
+   *
+   * Two steps, both scoped as narrowly as the API allows: a delegation limited
+   * to reading this one key for a few minutes, and a URL signed under it. A
+   * store-wide token would work identically here and be a much larger thing to
+   * leak.
+   */
+  async signedReadUrl(key: string): Promise<string> {
+    const validUntil = Date.now() + this.readTtlSeconds * 1000;
+
+    const delegation = await issueSignedToken({
+      token: this.token,
+      pathname: key,
+      operations: ['get'],
+      validUntil,
+    });
+
+    const { presignedUrl } = await presignUrl(delegation, {
+      access: 'private',
+      operation: 'get',
+      pathname: key,
+      validUntil,
+    });
+
+    return presignedUrl;
   }
 
   async remove(urls: string[]): Promise<void> {

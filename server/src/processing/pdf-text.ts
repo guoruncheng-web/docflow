@@ -1,3 +1,5 @@
+import { pathToFileURL } from 'node:url';
+
 /**
  * Reads a PDF's text layer along with where each word sits on the page.
  *
@@ -55,15 +57,40 @@ export class DocumentReadError extends Error {
 const MAX_PAGES = 10;
 
 /**
- * pdf.js 4 ships ESM only, and this application compiles to CommonJS, where
- * TypeScript rewrites `import()` into `require()` — which cannot load an
- * `.mjs` file and fails at runtime rather than at build time. Going through
- * `Function` hides the expression from that rewrite, leaving a genuine dynamic
- * import that Node performs happily from CommonJS.
+ * Loading pdf.js from CommonJS, without disappearing from the bundler.
+ *
+ * pdf.js 4 ships ESM only, and this compiles to CommonJS, where TypeScript
+ * rewrites `import()` into `require()` — which cannot load an `.mjs` file and
+ * fails at runtime rather than at build time. Hiding the expression inside
+ * `Function` leaves a genuine dynamic import that Node performs happily.
+ *
+ * But hiding it from TypeScript also hides it from the deployment's dependency
+ * tracer, which then ships a function with no pdf.js in it and a stack trace
+ * that arrives on the first real document. `require.resolve` is the fix for
+ * both halves: it is static enough for the tracer to follow, and it hands back
+ * the absolute path the dynamic import needs.
  */
-const importPdfjs = new Function('return import("pdfjs-dist/legacy/build/pdf.mjs")') as () => Promise<
-  typeof import('pdfjs-dist/legacy/build/pdf.mjs')
->;
+const PDFJS_ENTRY = require.resolve('pdfjs-dist/legacy/build/pdf.mjs');
+
+/**
+ * The worker is resolved for the same reason, and named explicitly.
+ *
+ * Outside a browser pdf.js still loads its worker — it imports `pdf.worker.mjs`
+ * at the first document rather than at startup, so a bundle missing it deploys
+ * cleanly, passes a health check, and fails on the first real upload with a
+ * message about a "fake worker" that says nothing about the actual cause.
+ */
+const PDFJS_WORKER = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+
+const importEsm = new Function('specifier', 'return import(specifier)') as (
+  specifier: string,
+) => Promise<typeof import('pdfjs-dist/legacy/build/pdf.mjs')>;
+
+async function importPdfjs() {
+  const pdfjs = await importEsm(pathToFileURL(PDFJS_ENTRY).href);
+  pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(PDFJS_WORKER).href;
+  return pdfjs;
+}
 
 export class PdfTextLayerAdapter implements OcrAdapter {
   readonly name = 'pdfjs-text-layer';

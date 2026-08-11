@@ -8,7 +8,7 @@
     "invoiceNumber": "NW-2291",
     "currencyCode": "USD",
     "totalMinor": 57840,
-    "byteSize": 2171
+    "byteSize": 2172
   },
   {
     "slug": "northwind-duplicate",
@@ -30,7 +30,7 @@
     "invoiceNumber": "AF-10042",
     "currencyCode": "USD",
     "totalMinor": 285760,
-    "byteSize": 2291
+    "byteSize": 2292
   },
   {
     "slug": "meridian-foreign-currency",
@@ -52,7 +52,7 @@
     "invoiceNumber": "HL-88213",
     "currencyCode": "GBP",
     "totalMinor": 302400,
-    "byteSize": 2196
+    "byteSize": 2197
   },
   {
     "slug": "quill-prompt-injection",

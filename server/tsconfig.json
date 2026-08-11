@@ -9,6 +9,12 @@
     "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
+    // Pinned rather than inferred. tsc derives rootDir from the common parent of
+    // the files it actually compiles, so a project whose only sources live in
+    // src/ emits dist/bootstrap.js while one that also compiles api/ emits
+    // dist/src/bootstrap.js — and the function entry point hard-codes one of
+    // those paths. Fixing it here keeps the layout stable whatever is added.
+    "rootDir": ".",
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,

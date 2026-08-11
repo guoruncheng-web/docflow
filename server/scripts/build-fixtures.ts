@@ -20,7 +20,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
-const outputDirectory = join(here, '..', '..', 'fixtures', 'invoices');
+const outputDirectory = join(here, '..', 'fixtures', 'invoices');
 
 type Line = { description: string; quantity: number; unitPriceMinor: number; amountMinor: number };
 
