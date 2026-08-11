@@ -1,0 +1,5 @@
+.vercel
+.env*
+
+# Copied out of swagger-ui-dist during the build.
+public/docs-assets/

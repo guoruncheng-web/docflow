@@ -1,0 +1,362 @@
+// DocFlow — document extraction, review, approval and delivery.
+//
+// Two ideas shape this schema and most of the columns follow from them.
+//
+// First: what a model proposed and what a person approved are different kinds
+// of fact, so they are different tables. `field_proposals` is what the
+// extraction produced, evidence and confidence included, and it is never
+// edited. `record_versions` is what the business will act on, and every edit
+// writes a new immutable one. An approval names the exact version it approved,
+// which is what makes "approved" mean something after somebody changes a
+// number.
+//
+// Second: delivery to another system is unreliable in a specific way — a
+// request can succeed remotely and fail locally. So an approval and its outbox
+// event are written in one transaction, and every attempt carries an
+// idempotency key derived from the approved version rather than from the
+// moment of sending.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/// A tenant. Demo workspaces carry an expiry and are reaped.
+model Organization {
+  id        String    @id @default(uuid())
+  name      String
+  isDemo    Boolean   @default(false) @map("is_demo")
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  users        User[]
+  documents    Document[]
+  records      Record[]
+  auditEvents  AuditEvent[]
+  syncJobs     SyncJob[]
+  outboxEvents OutboxEvent[]
+
+  @@index([expiresAt])
+  @@map("organizations")
+}
+
+model User {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  email          String   @unique
+  name           String
+  passwordHash   String   @map("password_hash")
+  role           String   @default("approver")
+  failedLogins   Int      @default(0) @map("failed_logins")
+  lockedUntil    DateTime? @map("locked_until")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  approvals    Approval[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+/// How one document type becomes a business record. Versioned and immutable
+/// once a run has used it, so a record can always name the rules it was judged
+/// by. Templates are seeded from code rather than authored by visitors.
+model ProcessingTemplate {
+  id            String   @id @default(uuid())
+  key           String
+  version       Int
+  name          String
+  description   String
+  promptVersion String   @map("prompt_version")
+  /// JSON Schema for the extracted document, plus field policies and the
+  /// destination mapping — shapes that belong together and are read as a unit.
+  definition    Json
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  documents Document[]
+  runs      ProcessingRun[]
+
+  @@unique([key, version])
+  @@map("processing_templates")
+}
+
+model Document {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  templateId     String   @map("template_id")
+  filename       String
+  mimeType       String   @map("mime_type")
+  byteSize       Int      @map("byte_size")
+  pageCount      Int      @default(1) @map("page_count")
+  /// SHA-256 of the bytes as uploaded. Duplicate detection compares this
+  /// before anything is extracted, because the cheapest extraction is the one
+  /// that does not happen.
+  sha256         String
+  blobKey        String   @map("blob_key")
+  blobUrl        String   @map("blob_url")
+  status         String   @default("uploaded")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  template     ProcessingTemplate @relation(fields: [templateId], references: [id])
+  pages        DocumentPage[]
+  runs         ProcessingRun[]
+  record       Record?
+
+  @@index([organizationId, status])
+  @@index([organizationId, sha256])
+  @@map("documents")
+}
+
+/// One page's recognized text and geometry. Evidence coordinates are checked
+/// against these dimensions before the UI is asked to draw a box.
+model DocumentPage {
+  id         String @id @default(uuid())
+  documentId String @map("document_id")
+  pageNumber Int    @map("page_number")
+  width      Float
+  height     Float
+  text       String
+  previewUrl String? @map("preview_url")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, pageNumber])
+  @@map("document_pages")
+}
+
+/// One versioned attempt at turning a document into fields, with what it cost.
+model ProcessingRun {
+  id            String    @id @default(uuid())
+  documentId    String    @map("document_id")
+  templateId    String    @map("template_id")
+  templateVersion Int     @map("template_version")
+  promptVersion String    @map("prompt_version")
+  ocrProvider   String    @map("ocr_provider")
+  status        String    @default("running")
+  error         String?
+  attempts      Int       @default(1)
+  inputTokens   Int       @default(0) @map("input_tokens")
+  outputTokens  Int       @default(0) @map("output_tokens")
+  /// Integer millionths of a dollar. Summing integers keeps the usage panel
+  /// honest; a float average would be a claim rather than a measurement.
+  costMicros    Int       @default(0) @map("cost_micros")
+  latencyMs     Int       @default(0) @map("latency_ms")
+  startedAt     DateTime  @default(now()) @map("started_at")
+  finishedAt    DateTime? @map("finished_at")
+
+  document  Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  template  ProcessingTemplate @relation(fields: [templateId], references: [id])
+  proposals FieldProposal[]
+  calls     ModelCall[]
+
+  @@index([documentId])
+  @@map("processing_runs")
+}
+
+/// What the extraction proposed for one field, with where it came from. Never
+/// edited: a correction changes the record, not the history of what was read.
+model FieldProposal {
+  id              String  @id @default(uuid())
+  runId           String  @map("run_id")
+  fieldPath       String  @map("field_path")
+  rawValue        String? @map("raw_value")
+  normalizedValue Json?   @map("normalized_value")
+  confidence      Float
+  method          String
+  pageNumber      Int?    @map("page_number")
+  evidenceText    String? @map("evidence_text")
+  /// [x, y, width, height] in page units, or null when the extractor could not
+  /// point at anything. A value nobody can trace is shown as exactly that.
+  evidenceBox     Json?   @map("evidence_box")
+
+  run ProcessingRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@map("field_proposals")
+}
+
+/// The working business record for one document.
+model Record {
+  id              String   @id @default(uuid())
+  organizationId  String   @map("organization_id")
+  documentId      String   @unique @map("document_id")
+  status          String   @default("needs_review")
+  currentVersion  Int      @default(1) @map("current_version")
+  /// The approved version, when there is one. Cleared by an edit, which is how
+  /// "approved" stops being true the moment the numbers change.
+  approvedVersion Int?     @map("approved_version")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  versions     RecordVersion[]
+  findings     ValidationFinding[]
+  approvals    Approval[]
+  syncJobs     SyncJob[]
+
+  @@index([organizationId, status])
+  @@map("records")
+}
+
+model RecordVersion {
+  id        String   @id @default(uuid())
+  recordId  String   @map("record_id")
+  version   Int
+  data      Json
+  changedBy String   @default("system") @map("changed_by")
+  reason    String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  record Record @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@unique([recordId, version])
+  @@map("record_versions")
+}
+
+/// A deterministic rule's verdict. `code` is stable so findings can be counted
+/// and compared over time; the message is for people and may change.
+model ValidationFinding {
+  id           String    @id @default(uuid())
+  recordId     String    @map("record_id")
+  version      Int
+  code         String
+  severity     String
+  fieldPath    String?   @map("field_path")
+  message      String
+  resolvedAt   DateTime? @map("resolved_at")
+  resolution   String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  record Record @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId, version])
+  @@map("validation_findings")
+}
+
+model Approval {
+  id              String   @id @default(uuid())
+  recordId        String   @map("record_id")
+  userId          String   @map("user_id")
+  decision        String
+  recordVersion   Int      @map("record_version")
+  templateVersion Int      @map("template_version")
+  note            String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  record Record @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([recordId])
+  @@map("approvals")
+}
+
+/// The transactional half of delivery: written in the same transaction as the
+/// approval, claimed later by a bounded consumer.
+model OutboxEvent {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  type           String
+  payload        Json
+  availableAt    DateTime  @default(now()) @map("available_at")
+  claimedAt      DateTime? @map("claimed_at")
+  processedAt    DateTime? @map("processed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([processedAt, availableAt])
+  @@map("outbox_events")
+}
+
+/// One destination delivery. The idempotency key is derived from the approved
+/// version, so a retry after an unseen success reuses the same key instead of
+/// creating a second record over there.
+model SyncJob {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  recordId       String    @map("record_id")
+  destination    String
+  idempotencyKey String    @unique @map("idempotency_key")
+  status         String    @default("pending")
+  attempts       Int       @default(0)
+  lastError      String?   @map("last_error")
+  externalId     String?   @map("external_id")
+  requestBody    Json?     @map("request_body")
+  responseBody   Json?     @map("response_body")
+  nextAttemptAt  DateTime? @map("next_attempt_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  record       Record       @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  attemptLog   SyncAttempt[]
+
+  @@index([organizationId, status])
+  @@map("sync_jobs")
+}
+
+model SyncAttempt {
+  id        String   @id @default(uuid())
+  jobId     String   @map("job_id")
+  attempt   Int
+  outcome   String
+  status    Int?
+  error     String?
+  delayMs   Int?     @map("delay_ms")
+  latencyMs Int      @default(0) @map("latency_ms")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  job SyncJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("sync_attempts")
+}
+
+/// Every model call, successful or not. A usage panel with no failed calls in
+/// it is lying about the bill.
+model ModelCall {
+  id            String   @id @default(uuid())
+  runId         String?  @map("run_id")
+  organizationId String  @map("organization_id")
+  purpose       String
+  attempt       Int      @default(1)
+  outcome       String
+  model         String
+  promptVersion String   @map("prompt_version")
+  cacheHit      Boolean  @default(false) @map("cache_hit")
+  inputTokens   Int      @default(0) @map("input_tokens")
+  outputTokens  Int      @default(0) @map("output_tokens")
+  costMicros    Int      @default(0) @map("cost_micros")
+  latencyMs     Int      @default(0) @map("latency_ms")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  run ProcessingRun? @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("model_calls")
+}
+
+/// Append-only from the application's point of view: the timeline the UI draws
+/// is read from here, not from optimistic browser state.
+model AuditEvent {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  subjectType    String   @map("subject_type")
+  subjectId      String   @map("subject_id")
+  action         String
+  actor          String
+  detail         Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, subjectId, createdAt])
+  @@map("audit_events")
+}

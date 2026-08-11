@@ -1,0 +1,28 @@
+# Secrets. Real values live in each hosting provider's dashboard; the
+# .env.example files document what has to be set.
+.env
+.env.*
+!.env.example
+
+# Anything that looks like a key file, wherever it lands.
+*key*.md
+*secret*
+*.pem
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Tooling
+.vercel
+.idea/
+.vscode/
+coverage/
+
+# Noise
+*.log
+.DS_Store

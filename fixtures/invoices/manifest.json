@@ -1,0 +1,68 @@
+[
+  {
+    "slug": "northwind-clean",
+    "filename": "northwind-clean.pdf",
+    "title": "Northwind Paper — clean invoice",
+    "teaser": "Everything adds up. The baseline for what a good run looks like.",
+    "vendorName": "Northwind Paper Co",
+    "invoiceNumber": "NW-2291",
+    "currencyCode": "USD",
+    "totalMinor": 57840,
+    "byteSize": 2171
+  },
+  {
+    "slug": "northwind-duplicate",
+    "filename": "northwind-duplicate.pdf",
+    "title": "Northwind Paper — the same invoice again",
+    "teaser": "A re-sent copy: different file, same vendor and number. Process it after the clean one.",
+    "vendorName": "Northwind Paper Co",
+    "invoiceNumber": "NW-2291",
+    "currencyCode": "USD",
+    "totalMinor": 57840,
+    "byteSize": 2226
+  },
+  {
+    "slug": "atlas-total-mismatch",
+    "filename": "atlas-total-mismatch.pdf",
+    "title": "Atlas Fabrication — the total is wrong",
+    "teaser": "Subtotal plus tax does not equal the printed total. Approval is blocked until a person decides.",
+    "vendorName": "Atlas Fabrication Ltd",
+    "invoiceNumber": "AF-10042",
+    "currencyCode": "USD",
+    "totalMinor": 285760,
+    "byteSize": 2291
+  },
+  {
+    "slug": "meridian-foreign-currency",
+    "filename": "meridian-foreign-currency.pdf",
+    "title": "Meridian Design — a currency nobody can book",
+    "teaser": "Priced in JPY. The destination only accepts USD, EUR and GBP, so it cannot be synchronised.",
+    "vendorName": "Meridian Design KK",
+    "invoiceNumber": "MD-2026-0345",
+    "currencyCode": "JPY",
+    "totalMinor": 60720000,
+    "byteSize": 2147
+  },
+  {
+    "slug": "harborline-future-dated",
+    "filename": "harborline-future-dated.pdf",
+    "title": "Harborline Logistics — dated next quarter",
+    "teaser": "An invoice dated months in the future — usually a typo, always worth stopping.",
+    "vendorName": "Harborline Logistics",
+    "invoiceNumber": "HL-88213",
+    "currencyCode": "GBP",
+    "totalMinor": 302400,
+    "byteSize": 2196
+  },
+  {
+    "slug": "quill-prompt-injection",
+    "filename": "quill-prompt-injection.pdf",
+    "title": "Quill Supplies — an invoice that talks to the model",
+    "teaser": "Carries a line of text instructing the extractor to approve it and skip checks. The document is data, not instructions.",
+    "vendorName": "Quill Supplies Inc",
+    "invoiceNumber": "QS-4471",
+    "currencyCode": "USD",
+    "totalMinor": 154080,
+    "byteSize": 2253
+  }
+]
