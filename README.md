@@ -17,8 +17,9 @@ No sign-up: the workspace is private, disposable and deleted within a day or two
 
 ## What you can do in the demo
 
-Press **Open a demo workspace** and you get a private inbox and six synthetic
-invoices, each written to fail in a particular way.
+Press **Open a demo workspace** and you get a private, empty inbox plus a gallery
+of six synthetic invoices. Choose one to copy it into the inbox and process it;
+each sample is written to produce a particular outcome.
 
 | Do this | Watch |
 | --- | --- |
@@ -169,7 +170,7 @@ the two price variables at whichever provider you have a key for.
 ## Tests
 
 ```bash
-cd server && pnpm test     # 72 unit tests
+cd server && pnpm test     # 73 unit tests
 cd web    && pnpm test     # 17 unit tests
 ```
 

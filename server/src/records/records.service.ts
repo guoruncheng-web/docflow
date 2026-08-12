@@ -278,6 +278,11 @@ export class RecordsService {
 
   async approve(organizationId: string, recordId: string, userId: string, note: string | undefined, actor: string) {
     const record = await this.load(organizationId, recordId);
+    if (record.approvedVersion !== null) {
+      throw new ConflictException(
+        `Version ${record.approvedVersion} is already approved. Edit the record before creating a new approval.`,
+      );
+    }
     const findings = await this.prisma.validationFinding.findMany({ where: { recordId: record.id } });
     const blockers = this.blockers(findings);
 
@@ -294,8 +299,16 @@ export class RecordsService {
     // process dies immediately afterwards, the system knows both that this was
     // approved and that it still owes a delivery — the pair is the whole point
     // of an outbox.
-    await this.prisma.$transaction([
-      this.prisma.approval.create({
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.record.updateMany({
+        where: { id: record.id, organizationId, currentVersion: version, approvedVersion: null },
+        data: { status: 'approved', approvedVersion: version },
+      });
+      if (claimed.count !== 1) {
+        throw new ConflictException('This record changed or was approved concurrently. Refresh and try again.');
+      }
+
+      await tx.approval.create({
         data: {
           recordId: record.id,
           userId,
@@ -304,19 +317,15 @@ export class RecordsService {
           templateVersion: INVOICE_TEMPLATE_VERSION,
           note: note?.slice(0, 500) ?? null,
         },
-      }),
-      this.prisma.record.update({
-        where: { id: record.id },
-        data: { status: 'approved', approvedVersion: version },
-      }),
-      this.prisma.outboxEvent.create({
+      });
+      await tx.outboxEvent.create({
         data: {
           organizationId,
           type: 'record.approved',
           payload: { recordId: record.id, approvedVersion: version, destination: this.destination.name },
         },
-      }),
-      this.prisma.auditEvent.create({
+      });
+      await tx.auditEvent.create({
         data: {
           organizationId,
           subjectType: 'record',
@@ -325,8 +334,8 @@ export class RecordsService {
           actor,
           detail: { version, templateVersion: INVOICE_TEMPLATE_VERSION, total: value.totalMinor, currency: value.currency },
         },
-      }),
-    ]);
+      });
+    }, { isolationLevel: 'Serializable' });
 
     return this.get(organizationId, recordId);
   }

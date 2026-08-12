@@ -1,0 +1,15 @@
+# Deployments are uploaded from the monorepo root. Package-level ignore files
+# are not applied while Vercel is assembling that upload.
+**/.env
+**/.env.*
+!**/.env.example
+
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/*.tsbuildinfo
+
+.git
+.github
+ARCHITECTURE.md
