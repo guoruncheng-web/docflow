@@ -251,7 +251,13 @@ model Approval {
   createdAt       DateTime @default(now()) @map("created_at")
 
   record Record @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id])
+  // Cascades with the approver for the same reason it cascades with the
+  // record: an approval is part of one organization's history, and a demo
+  // workspace is deleted whole. Left as the default restrict, the first
+  // sandbox in which anybody pressed Approve became undeletable, and because
+  // reaping runs before provisioning, that one row stopped every later
+  // visitor from getting a workspace at all.
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([recordId])
   @@map("approvals")

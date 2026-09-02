@@ -39,7 +39,15 @@ export class DemoService {
    * part worth showing.
    */
   async createSandbox(): Promise<AuthResponseDto> {
-    await this.reap();
+    // Reaping is housekeeping, and housekeeping must not decide whether a
+    // visitor gets in. It used to run un-guarded here, so the day a workspace
+    // became undeletable was the day every new visitor met a foreign key
+    // error instead of a demo.
+    try {
+      await this.reap();
+    } catch (error) {
+      this.logger.error('Reaping expired sandboxes failed; provisioning anyway', error as Error);
+    }
 
     const id = randomUUID();
 
@@ -96,12 +104,22 @@ export class DemoService {
     const blobUrls = expired.flatMap((organization) => organization.documents.map((document) => document.blobUrl));
     await this.blob.remove(blobUrls);
 
+    // One workspace at a time rather than a single deleteMany. A batch delete
+    // is atomic, so one row the database refuses to remove takes the other
+    // nineteen down with it and the backlog never shrinks.
+    //
     // The rows go after the files: a failed delete then leaves an orphaned
     // blob whose organization still exists to be retried, rather than a blob
     // nothing in the database remembers.
-    const { count } = await this.prisma.organization.deleteMany({
-      where: { id: { in: expired.map((organization) => organization.id) } },
-    });
+    let count = 0;
+    for (const organization of expired) {
+      try {
+        await this.prisma.organization.delete({ where: { id: organization.id } });
+        count += 1;
+      } catch (error) {
+        this.logger.error(`Could not reap sandbox ${organization.id}`, error as Error);
+      }
+    }
 
     this.logger.log(`Reaped ${count} expired sandbox(es) and ${blobUrls.length} file(s)`);
     await this.enforceCeiling();
@@ -122,8 +140,17 @@ export class DemoService {
     });
 
     await this.blob.remove(oldest.flatMap((organization) => organization.documents.map((d) => d.blobUrl)));
-    await this.prisma.organization.deleteMany({ where: { id: { in: oldest.map((o) => o.id) } } });
 
-    this.logger.warn(`Sandbox ceiling reached; removed ${oldest.length} of the oldest workspaces`);
+    let removed = 0;
+    for (const organization of oldest) {
+      try {
+        await this.prisma.organization.delete({ where: { id: organization.id } });
+        removed += 1;
+      } catch (error) {
+        this.logger.error(`Could not remove sandbox ${organization.id} at the ceiling`, error as Error);
+      }
+    }
+
+    this.logger.warn(`Sandbox ceiling reached; removed ${removed} of the oldest workspaces`);
   }
 }
