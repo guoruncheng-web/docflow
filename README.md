@@ -170,8 +170,8 @@ the two price variables at whichever provider you have a key for.
 ## Tests
 
 ```bash
-cd server && pnpm test     # 73 unit tests
-cd web    && pnpm test     # 17 unit tests
+cd server && pnpm test     # server unit suite
+cd web    && pnpm test     # web unit suite
 ```
 
 They concentrate on the parts that fail quietly: reading order rebuilt from

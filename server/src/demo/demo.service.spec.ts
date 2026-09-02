@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import { DemoService } from './demo.service';
 
 /**
@@ -88,6 +89,20 @@ describe('DemoService.createSandbox', () => {
 
     await expect(service.createSandbox()).resolves.toEqual({ accessToken: 'token', user });
     expect(auth.issueToken).toHaveBeenCalledWith(user);
+  });
+
+  it('refuses a new workspace at capacity without evicting another visitor', async () => {
+    const { service, prisma } = build();
+    prisma.organization.count.mockResolvedValue(120);
+
+    try {
+      await service.createSandbox();
+      throw new Error('Expected the capacity check to reject the request');
+    } catch (error) {
+      expect(error).toBeInstanceOf(HttpException);
+      expect((error as HttpException).getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+    }
+    expect(prisma.user.create).not.toHaveBeenCalled();
   });
 
   it('keeps reaping the rest when one workspace refuses to go', async () => {

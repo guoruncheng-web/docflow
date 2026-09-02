@@ -45,7 +45,15 @@ export type ExtractionResult = {
 export type CompleteFn = (input: {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
   onToken?: (token: string) => void;
+  attempt: number;
 }) => Promise<CompletionResult>;
+
+export type ExtractionCallRecord = {
+  attempt: number;
+  outcome: 'ok' | 'invalid_output' | 'rate_limited' | 'timeout' | 'upstream_error';
+  result?: CompletionResult;
+  error?: string;
+};
 
 /**
  * How much of the document the model is shown.
@@ -71,6 +79,7 @@ export function documentTextForModel(document: ExtractedDocument): string {
 export async function extractInvoice(input: {
   document: ExtractedDocument;
   complete: CompleteFn;
+  onCall?: (record: ExtractionCallRecord) => void | Promise<void>;
   onToken?: (token: string) => void;
   onAttempt?: (record: AttemptRecord) => void | Promise<void>;
   sleep?: (ms: number) => Promise<void>;
@@ -82,7 +91,7 @@ export async function extractInvoice(input: {
   let complaint: { output: string; problem: string } | null = null;
 
   const parsed = await withRetry<InvoiceExtraction>(
-    async () => {
+    async (attempt) => {
       const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
         { role: 'system', content: system },
         { role: 'user', content: user },
@@ -99,18 +108,38 @@ export async function extractInvoice(input: {
         });
       }
 
-      const call = await input.complete({ messages, onToken: input.onToken });
+      let call: CompletionResult;
+
+      try {
+        call = await input.complete({ messages, onToken: input.onToken, attempt });
+      } catch (error) {
+        const outcome = error instanceof LlmError ? error.kind : 'upstream_error';
+        await input.onCall?.({ attempt, outcome, error: (error as Error).message });
+        throw error;
+      }
+
       calls.push(call);
 
-      const json = extractJson(call.text);
+      let json: unknown;
+      try {
+        json = extractJson(call.text);
+      } catch (error) {
+        const problem = (error as Error).message;
+        complaint = { output: call.text.slice(0, 4_000), problem };
+        await input.onCall?.({ attempt, outcome: 'invalid_output', result: call, error: problem });
+        throw new LlmError('invalid_output', problem);
+      }
+
       const result = invoiceExtractionSchema.safeParse(json);
 
       if (!result.success) {
         const problem = describe(result.error);
         complaint = { output: call.text.slice(0, 4_000), problem };
+        await input.onCall?.({ attempt, outcome: 'invalid_output', result: call, error: problem });
         throw new LlmError('invalid_output', problem);
       }
 
+      await input.onCall?.({ attempt, outcome: 'ok', result: call });
       return result.data;
     },
     {

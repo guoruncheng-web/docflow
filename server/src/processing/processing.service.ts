@@ -91,26 +91,23 @@ export class ProcessingService {
         document: extracted,
         onToken: events.onToken,
         onAttempt: events.onAttempt,
-        complete: async ({ messages, onToken }) => {
-          const call = await this.llm.complete({ messages, onToken });
-
+        complete: ({ messages, onToken }) => this.llm.complete({ messages, onToken }),
+        onCall: async ({ attempt, outcome, result: call }) => {
           await this.prisma.modelCall.create({
             data: {
               runId: run.id,
               organizationId,
               purpose: 'extraction',
-              attempt: 1,
-              outcome: 'ok',
-              model: call.model,
+              attempt,
+              outcome,
+              model: call?.model ?? 'unknown',
               promptVersion: template.promptVersion,
-              inputTokens: call.inputTokens,
-              outputTokens: call.outputTokens,
-              costMicros: call.costMicros,
-              latencyMs: call.latencyMs,
+              inputTokens: call?.inputTokens ?? 0,
+              outputTokens: call?.outputTokens ?? 0,
+              costMicros: call?.costMicros ?? 0,
+              latencyMs: call?.latencyMs ?? 0,
             },
           });
-
-          return call;
         },
       });
 

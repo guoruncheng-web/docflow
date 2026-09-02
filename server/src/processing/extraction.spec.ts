@@ -2,6 +2,7 @@ import { documentTextForModel, extractInvoice, extractJson } from './extraction'
 import type { CompleteFn } from './extraction';
 import type { ExtractedDocument } from './pdf-text';
 import type { CompletionResult } from '../llm/llm.types';
+import { LlmError } from '../llm/llm.types';
 
 const PAGE_WORDS = [
   { text: 'Northwind Paper Co', x: 48, y: 60, width: 120, height: 12 },
@@ -156,6 +157,50 @@ describe('extractInvoice', () => {
     }).catch(() => undefined);
 
     expect(seen[0]).toBe('invalid_output');
+  });
+
+  it('reports the actual outcome and number of every paid model call', async () => {
+    const broken = answer({ totalMinor: { value: 578.4, confidence: 0.9, evidence: null } });
+    const calls: Array<{ attempt: number; outcome: string; costMicros: number }> = [];
+
+    await extractInvoice({
+      document: DOCUMENT,
+      complete: replying(broken, answer()),
+      onCall: ({ attempt, outcome, result }) => {
+        calls.push({ attempt, outcome, costMicros: result?.costMicros ?? 0 });
+      },
+      sleep: noSleep,
+    });
+
+    expect(calls).toEqual([
+      { attempt: 1, outcome: 'invalid_output', costMicros: 40 },
+      { attempt: 2, outcome: 'ok', costMicros: 40 },
+    ]);
+  });
+
+  it('reports an upstream failure even when no completion result exists', async () => {
+    const calls: Array<{ attempt: number; outcome: string; hasResult: boolean }> = [];
+    let attempt = 0;
+
+    const complete: CompleteFn = async () => {
+      attempt += 1;
+      if (attempt === 1) throw new LlmError('rate_limited', 'slow down', 1);
+      return completion(answer());
+    };
+
+    await extractInvoice({
+      document: DOCUMENT,
+      complete,
+      onCall: ({ attempt: callAttempt, outcome, result }) => {
+        calls.push({ attempt: callAttempt, outcome, hasResult: Boolean(result) });
+      },
+      sleep: noSleep,
+    });
+
+    expect(calls).toEqual([
+      { attempt: 1, outcome: 'rate_limited', hasResult: false },
+      { attempt: 2, outcome: 'ok', hasResult: true },
+    ]);
   });
 });
 

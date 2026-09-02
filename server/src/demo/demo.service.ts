@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth.dto';
@@ -47,6 +47,11 @@ export class DemoService {
       await this.reap();
     } catch (error) {
       this.logger.error('Reaping expired sandboxes failed; provisioning anyway', error as Error);
+    }
+
+    const live = await this.prisma.organization.count({ where: { isDemo: true } });
+    if (live >= MAX_LIVE_SANDBOXES) {
+      throw new HttpException('The public demo is at capacity. Please try again later.', HttpStatus.TOO_MANY_REQUESTS);
     }
 
     const id = randomUUID();
@@ -97,7 +102,6 @@ export class DemoService {
     });
 
     if (expired.length === 0) {
-      await this.enforceCeiling();
       return { organizations: 0, blobs: 0 };
     }
 
@@ -122,35 +126,7 @@ export class DemoService {
     }
 
     this.logger.log(`Reaped ${count} expired sandbox(es) and ${blobUrls.length} file(s)`);
-    await this.enforceCeiling();
 
     return { organizations: count, blobs: blobUrls.length };
-  }
-
-  /** Drops the oldest sandboxes once there are more live than the cap allows. */
-  private async enforceCeiling(): Promise<void> {
-    const live = await this.prisma.organization.count({ where: { isDemo: true } });
-    if (live <= MAX_LIVE_SANDBOXES) return;
-
-    const oldest = await this.prisma.organization.findMany({
-      where: { isDemo: true },
-      orderBy: { createdAt: 'asc' },
-      take: live - MAX_LIVE_SANDBOXES,
-      select: { id: true, documents: { select: { blobUrl: true } } },
-    });
-
-    await this.blob.remove(oldest.flatMap((organization) => organization.documents.map((d) => d.blobUrl)));
-
-    let removed = 0;
-    for (const organization of oldest) {
-      try {
-        await this.prisma.organization.delete({ where: { id: organization.id } });
-        removed += 1;
-      } catch (error) {
-        this.logger.error(`Could not remove sandbox ${organization.id} at the ceiling`, error as Error);
-      }
-    }
-
-    this.logger.warn(`Sandbox ceiling reached; removed ${removed} of the oldest workspaces`);
   }
 }
