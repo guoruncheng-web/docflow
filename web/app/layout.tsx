@@ -19,6 +19,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="zh-CN" translate="no" className="notranslate">
       <body>
         <Providers>{children}</Providers>
+        <footer className="icp-footer">
+          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer">粤ICP备2026057508号-3</a>
+        </footer>
       </body>
     </html>
   );
