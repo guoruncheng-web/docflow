@@ -30,7 +30,7 @@ export default function DeskPage() {
     return (
       <div className="boot">
         <Loader2 size={18} className="spin" />
-        <p>Opening your workspace…</p>
+        <p>正在打开工作空间…</p>
       </div>
     );
   }
@@ -138,30 +138,34 @@ function Desk({ organizationName, onSignOut }: { organizationName: string; onSig
 
         <div className="spacer" />
 
+        <a className="language-link" href="https://docflow-web-woad.vercel.app" target="_blank" rel="noreferrer">
+          English ↗
+        </a>
+
         {usage.data && (
-          <span className="pill mono" title="Model spend in this workspace">
-            {dollars(usage.data.spentMicros)} · {usage.data.documents} docs
+          <span className="pill mono" title="当前工作空间的模型调用成本">
+            {dollars(usage.data.spentMicros)} · {usage.data.documents} 份文档
           </span>
         )}
 
         <span className="pill">{organizationName}</span>
 
-        <button className="ghost" onClick={onSignOut} title="Sign out" aria-label="Sign out">
+        <button className="ghost" onClick={onSignOut} title="退出登录" aria-label="退出登录">
           <LogOut size={14} />
         </button>
       </header>
 
       <aside className="queue">
         <div className="queue-head">
-          <p className="label">Inbox</p>
+          <p className="label">待处理文档</p>
           <h2>
-            {queue.length} document{queue.length === 1 ? "" : "s"}
+            {queue.length} 份文档
           </h2>
 
           <div className="row">
             <button className="ghost" onClick={() => uploadRef.current?.click()} disabled={upload.isPending}>
               {upload.isPending ? <Loader2 size={14} className="spin" /> : <Upload size={14} />}
-              Upload a PDF
+              上传 PDF
             </button>
             <input
               ref={uploadRef}
@@ -180,7 +184,7 @@ function Desk({ organizationName, onSignOut }: { organizationName: string; onSig
         {queue.length === 0 && (
           <div className="section">
             <p className="label" style={{ marginBottom: 8 }}>
-              Or start with one of these
+              或选择以下示例
             </p>
             <div className="gallery">
               {(samples.data ?? []).map((sample) => (
@@ -216,16 +220,16 @@ function Desk({ organizationName, onSignOut }: { organizationName: string; onSig
             </div>
             <div className="doc-meta">
               <span>{item.invoiceNumber ?? item.filename}</span>
-              {item.openErrors > 0 && <span className="chip error">{item.openErrors} blocking</span>}
+              {item.openErrors > 0 && <span className="chip error">{item.openErrors} 个阻断项</span>}
               {item.openErrors === 0 && item.openWarnings > 0 && (
-                <span className="chip warning">{item.openWarnings} to check</span>
+                <span className="chip warning">{item.openWarnings} 个待确认项</span>
               )}
               {item.recordStatus && item.openErrors === 0 && item.openWarnings === 0 && (
                 <span className={`chip ${item.recordStatus === "synced" ? "ok" : "pending"}`}>
-                  {item.recordStatus.replace(/_/g, " ")}
+                  {statusLabel(item.recordStatus)}
                 </span>
               )}
-              {!item.recordId && <span className="chip pending">not read yet</span>}
+              {!item.recordId && <span className="chip pending">尚未识别</span>}
             </div>
           </button>
         ))}
@@ -233,7 +237,7 @@ function Desk({ organizationName, onSignOut }: { organizationName: string; onSig
         {queue.length > 0 && (
           <div className="section">
             <p className="label" style={{ marginBottom: 8 }}>
-              Add another
+              添加其他示例
             </p>
             <div className="gallery">
               {(samples.data ?? []).map((sample) => (
@@ -258,7 +262,7 @@ function Desk({ organizationName, onSignOut }: { organizationName: string; onSig
             <div className="row" style={{ justifyContent: "space-between" }}>
               <div>
                 <p className="label">{selected.filename}</p>
-                <strong style={{ fontSize: 15 }}>{selected.vendorName ?? "Not read yet"}</strong>
+                <strong style={{ fontSize: 15 }}>{selected.vendorName ?? "尚未识别"}</strong>
               </div>
 
               <button
@@ -267,16 +271,16 @@ function Desk({ organizationName, onSignOut }: { organizationName: string; onSig
                 onClick={() => process(selected.id)}
               >
                 {processing === selected.id ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
-                {selected.recordId ? "Read it again" : "Read this document"}
+                {selected.recordId ? "重新识别" : "识别这份文档"}
               </button>
             </div>
 
             {stage && processing === selected.id && (
               <p className="note">
-                {stage.stage === "reading" && `Reading the page with ${String(stage.detail.provider)}…`}
+                {stage.stage === "reading" && `正在使用 ${String(stage.detail.provider)} 读取页面…`}
                 {stage.stage === "extracting" &&
-                  `${String(stage.detail.characters)} characters of text across ${String(stage.detail.pages)} page(s). Asking the model…`}
-                {stage.stage === "validating" && "Checking it against the rules…"}
+                  `已从 ${String(stage.detail.pages)} 页提取 ${String(stage.detail.characters)} 个字符，正在请求模型…`}
+                {stage.stage === "validating" && "正在执行规则校验…"}
               </p>
             )}
 
@@ -301,8 +305,7 @@ function Desk({ organizationName, onSignOut }: { organizationName: string; onSig
             <div className="viewer-empty">
               <HelpCircle size={22} />
               <p>
-                Pick one of the sample invoices on the left, or upload a PDF of your own. Each sample is
-                written to fail in a particular way.
+                从左侧选择一张示例票据，或上传自己的 PDF。每张示例都对应一种可验证的处理结果。
               </p>
             </div>
           </div>
@@ -314,15 +317,19 @@ function Desk({ organizationName, onSignOut }: { organizationName: string; onSig
       ) : (
         <aside className="review">
           <div className="section">
-            <p className="label">Review</p>
+            <p className="label">审核</p>
             <p className="note">
               {selected
-                ? "Read the document and its proposed fields, evidence and findings appear here."
-                : "Nothing selected."}
+                ? "识别文档后，建议字段、原文证据和校验结果会显示在这里。"
+                : "尚未选择文档。"}
             </p>
           </div>
         </aside>
       )}
     </div>
   );
+}
+
+function statusLabel(value: string): string {
+  return ({ needs_review: "待审核", approved: "已通过", rejected: "已驳回", sync_pending: "待同步", synced: "已同步", sync_failed: "同步失败" } as Record<string, string>)[value] ?? value.replace(/_/g, " ");
 }

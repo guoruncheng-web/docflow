@@ -37,55 +37,52 @@ export default function EntryPage() {
           </span>
           docflow
         </div>
+        <a className="language-link" href="https://docflow-web-woad.vercel.app" target="_blank" rel="noreferrer">
+          English version ↗
+        </a>
 
-        <h1>Invoices, read and checked before anyone books them.</h1>
+        <h1>票据入账前，先完成识别、校验与人工审核。</h1>
 
         <p>
-          A document arrives. Its fields are extracted with the exact line each value came from, checked
-          against rules that are ordinary code rather than a second opinion from the model, and held for a
-          person whenever anything is uncertain. What gets sent to the accounting system is what somebody
-          approved — and sending it twice creates one bill.
+          上传票据后，系统提取字段并定位每个值对应的原文，通过代码规则完成校验；任何不确定项都会交给人工处理。只有审核通过的版本才能同步到财务系统，重复提交也只会生成一张账单。
         </p>
 
         <ul className="facts">
           <li>
             <span className="num">$0.0007</span>
-            <span>to read one invoice, recorded per call rather than estimated</span>
+            <span>识别一张票据的实测模型成本，按调用记录而非估算</span>
           </li>
           <li>
             <span className="num">9 of 9</span>
-            <span>fields shown with the words on the page they were read from</span>
+            <span>9 个字段均可回溯到票据原文位置</span>
           </li>
           <li>
-            <span className="num">1 bill</span>
-            <span>at the destination after a delivery that succeeded and lost its response</span>
+            <span className="num">1 张账单</span>
+            <span>即使远端成功但响应丢失，重试也不会重复创建</span>
           </li>
           <li>
             <span className="num">0</span>
-            <span>records delivered without a person approving that exact version</span>
+            <span>未经人工审核具体版本便同步的记录</span>
           </li>
         </ul>
       </div>
 
       <div className="entry-action">
-        <h2 style={{ margin: 0, fontSize: 18 }}>Open a demo workspace</h2>
+        <h2 style={{ margin: 0, fontSize: 18 }}>打开演示工作空间</h2>
         <p style={{ margin: 0, color: "var(--ink-dim)", fontSize: 13.5 }}>
-          Yours alone, no sign-up, deleted after a day. It comes with six synthetic invoices: one clean, one
-          that is a duplicate of it, one whose total does not add up, one in a currency the destination
-          cannot book, one dated next year, and one carrying an instruction aimed at the model.
+          无需注册，自动创建独立空间并在 24 小时后清理。内置 6 张合成票据，分别展示正常、重复、金额不一致、不支持币种、未来日期与提示词注入等场景。
         </p>
 
         <button className="primary" style={{ height: 40 }} onClick={open} disabled={busy}>
           {busy ? <Loader2 size={16} className="spin" /> : null}
-          Open a demo workspace
+          开始体验
           {!busy && <ArrowRight size={16} />}
         </button>
 
         {error && <p className="error-text">{error}</p>}
 
         <p className="note">
-          Every model call in the demo is real and costs real money, which is why the workspace is
-          disposable and the number in the corner is measured rather than claimed.
+          演示中的模型调用与成本统计均为真实数据，因此空间会定期清理，页面角落显示的数值来自实际记录。
         </p>
       </div>
     </div>

@@ -85,7 +85,7 @@ export function ReviewPanel({ record, focusedField, onFocusField }: Props) {
     <aside className="review">
       <section className="section">
         <div className="section-head">
-          <span className="label">Proposed fields</span>
+          <span className="label">建议字段</span>
           <span className="label">v{record.currentVersion}</span>
         </div>
 
@@ -102,17 +102,17 @@ export function ReviewPanel({ record, focusedField, onFocusField }: Props) {
               onFocus={() => onFocusField(field.path)}
               onMouseEnter={() => onFocusField(field.path)}
             >
-              <span className="field-label">{field.label}</span>
+              <span className="field-label">{fieldLabel(field.path, field.label)}</span>
               <span className="row" style={{ gap: 6 }}>
-                {field.edited && <span className="chip">edited</span>}
+                {field.edited && <span className="chip">已编辑</span>}
                 {field.method === "llm+unverified-quote" && (
-                  <span className="chip warning" title="The model quoted text that is not in this document">
-                    no source
+                  <span className="chip warning" title="模型引用的文字未出现在文档中">
+                    无原文依据
                   </span>
                 )}
                 {percent !== null && (
                   <>
-                    <span className={`confidence${low ? " low" : ""}`} title={`${percent}% confidence`}>
+                    <span className={`confidence${low ? " low" : ""}`} title={`置信度 ${percent}%`}>
                       <span style={{ width: `${percent}%` }} />
                     </span>
                     <span className="num" style={{ fontSize: 11, color: "var(--faint)" }}>
@@ -132,7 +132,7 @@ export function ReviewPanel({ record, focusedField, onFocusField }: Props) {
                   onKeyDown={(event) => {
                     if (event.key === "Enter") (event.target as HTMLInputElement).blur();
                   }}
-                  aria-label={field.label}
+                  aria-label={fieldLabel(field.path, field.label)}
                   disabled={record.status === "synced"}
                 />
               </div>
@@ -143,7 +143,7 @@ export function ReviewPanel({ record, focusedField, onFocusField }: Props) {
         {record.lines.length > 0 && (
           <details style={{ marginTop: 12 }}>
             <summary className="label" style={{ cursor: "pointer" }}>
-              {record.lines.length} line items
+              {record.lines.length} 个明细项
             </summary>
             <div className="stack" style={{ marginTop: 8 }}>
               {record.lines.map((line, index) => (
@@ -161,12 +161,12 @@ export function ReviewPanel({ record, focusedField, onFocusField }: Props) {
 
       <section className="section">
         <div className="section-head">
-          <span className="label">Findings</span>
-          <span className="label">{open.length} open</span>
+          <span className="label">校验结果</span>
+          <span className="label">{open.length} 项待处理</span>
         </div>
 
         {record.findings.length === 0 && (
-          <p className="note">Every rule passed. Nothing here is asking for a decision.</p>
+          <p className="note">全部规则校验通过，无需额外处理。</p>
         )}
 
         {record.findings.map((finding) => (
@@ -185,17 +185,17 @@ export function ReviewPanel({ record, focusedField, onFocusField }: Props) {
 
       <section className="section">
         <div className="section-head">
-          <span className="label">Approval</span>
-          <span className={`chip ${statusTone(record.status)}`}>{record.status.replace(/_/g, " ")}</span>
+          <span className="label">人工审核</span>
+          <span className={`chip ${statusTone(record.status)}`}>{statusLabel(record.status)}</span>
         </div>
 
         {record.approvalBlockers.length > 0 ? (
           <p className="note" style={{ color: "var(--danger)" }}>
-            {record.approvalBlockers.join(" ")}
+            当前仍有 {open.length} 个校验项需要处理，暂时无法审核通过。
           </p>
         ) : (
           <p className="note">
-            Approving records this exact version. Editing anything afterwards withdraws the approval.
+            审核会锁定当前版本；后续修改任何字段都会自动撤回本次通过状态。
           </p>
         )}
 
@@ -206,19 +206,19 @@ export function ReviewPanel({ record, focusedField, onFocusField }: Props) {
             onClick={() => decide.mutate({ decision: "approve" })}
           >
             {decide.isPending ? <Loader2 size={14} className="spin" /> : <ShieldCheck size={14} />}
-            Approve v{record.currentVersion}
+            通过 v{record.currentVersion}
           </button>
 
           <button
             className="ghost"
             disabled={busy || record.status === "synced"}
             onClick={() => {
-              const note = window.prompt("Why is this being rejected?");
+              const note = window.prompt("请输入驳回原因");
               if (note?.trim()) decide.mutate({ decision: "reject", note });
             }}
           >
             <X size={14} />
-            Reject
+            驳回
           </button>
         </div>
 
@@ -226,7 +226,7 @@ export function ReviewPanel({ record, focusedField, onFocusField }: Props) {
           <div className="stack" style={{ marginTop: 12 }}>
             {record.approvals.slice(0, 3).map((approval, index) => (
               <p key={index} className="note" style={{ margin: 0 }}>
-                <strong>{approval.decision}</strong> v{approval.recordVersion} by {approval.by}
+                <strong>{approval.decision === "approve" ? "已通过" : "已驳回"}</strong> v{approval.recordVersion}，操作人 {approval.by}
                 {approval.note ? ` — ${approval.note}` : ""}
               </p>
             ))}
@@ -241,7 +241,7 @@ export function ReviewPanel({ record, focusedField, onFocusField }: Props) {
       {record.usage && (
         <section className="section">
           <div className="section-head">
-            <span className="label">What this document cost</span>
+            <span className="label">本次文档处理成本</span>
             <span className="label">{record.usage.promptVersion}</span>
           </div>
           <div className="row" style={{ gap: 16, fontSize: 12.5 }}>
@@ -249,20 +249,20 @@ export function ReviewPanel({ record, focusedField, onFocusField }: Props) {
               <span className="num" style={{ fontWeight: 600 }}>
                 {dollars(record.usage.costMicros, 5)}
               </span>{" "}
-              <span style={{ color: "var(--muted)" }}>model spend</span>
+              <span style={{ color: "var(--muted)" }}>模型成本</span>
             </span>
             <span>
               <span className="num" style={{ fontWeight: 600 }}>
                 {(record.usage.latencyMs / 1000).toFixed(1)}s
               </span>{" "}
-              <span style={{ color: "var(--muted)" }}>to read it</span>
+              <span style={{ color: "var(--muted)" }}>处理耗时</span>
             </span>
             <span>
               <span className="num" style={{ fontWeight: 600 }}>
                 {record.usage.attempts}
               </span>{" "}
               <span style={{ color: "var(--muted)" }}>
-                attempt{record.usage.attempts === 1 ? "" : "s"}
+                次尝试
               </span>
             </span>
           </div>
@@ -294,7 +294,7 @@ function FindingCard({
       <div className="finding-top">
         {finding.severity === "error" ? <CircleAlert size={14} /> : <AlertTriangle size={14} />}
         <span className="outcome">{finding.code}</span>
-        {resolved && <span className="chip ok">resolved</span>}
+        {resolved && <span className="chip ok">已处理</span>}
       </div>
 
       <p>{finding.message}</p>
@@ -308,20 +308,20 @@ function FindingCard({
           <input
             className="ghost"
             style={{ flex: 1, minWidth: 140 }}
-            placeholder="Reason for overriding"
+            placeholder="请输入覆盖原因"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            aria-label={`Reason for overriding ${finding.code}`}
+            aria-label={`覆盖 ${finding.code} 的原因`}
           />
           <button className="ghost" disabled={busy || !reason.trim()} onClick={() => onResolve(reason)}>
-            Override
+            确认覆盖
           </button>
         </div>
       ) : (
         <div>
-          <button className="ghost" disabled={busy} onClick={() => onResolve("Acknowledged")}>
+          <button className="ghost" disabled={busy} onClick={() => onResolve("已人工确认")}>
             <Check size={14} />
-            Acknowledge
+            确认知悉
           </button>
         </div>
       )}
@@ -357,8 +357,8 @@ function DeliverySection({
   return (
     <section className="section">
       <div className="section-head">
-        <span className="label">Delivery</span>
-        <span className="label">mock accounting</span>
+        <span className="label">同步交付</span>
+        <span className="label">模拟财务系统</span>
       </div>
 
       <div className="row">
@@ -366,13 +366,13 @@ function DeliverySection({
           className="ghost"
           value={fault}
           onChange={(event) => setFault(event.target.value)}
-          aria-label="Inject a delivery fault"
+          aria-label="注入同步故障"
         >
-          <option value="none">No fault</option>
-          <option value="rate_limit">Rate-limit the first attempt</option>
-          <option value="server_error">Fail the first attempt with a 500</option>
-          <option value="timeout">Time out the first attempt</option>
-          <option value="lost_response">Succeed remotely, lose the response</option>
+          <option value="none">不注入故障</option>
+          <option value="rate_limit">模拟首次请求限流</option>
+          <option value="server_error">模拟首次请求返回 500</option>
+          <option value="timeout">模拟首次请求超时</option>
+          <option value="lost_response">远端成功但响应丢失</option>
         </select>
 
         <button
@@ -384,16 +384,16 @@ function DeliverySection({
           }}
         >
           {deliver.isPending ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
-          Deliver
+          同步到财务系统
         </button>
       </div>
 
       {record.approvedVersion === null && (
-        <p className="note">Only an approved version can be delivered.</p>
+        <p className="note">只有审核通过的版本才能同步。</p>
       )}
 
       {record.mappingProblems.length > 0 && (
-        <p className="error-text">The destination would refuse this: {record.mappingProblems.join("; ")}.</p>
+        <p className="error-text">目标系统会拒绝当前数据：{record.mappingProblems.join("; ")}。</p>
       )}
 
       {job && (
@@ -414,7 +414,7 @@ function DeliverySection({
                 <span className="index">#{attempt.attempt}</span>
                 <span className="outcome">{attempt.outcome.replace(/_/g, " ")}</span>
                 <span style={{ color: "var(--muted)", flex: 1 }}>{attempt.error ?? ""}</span>
-                {attempt.delayMs ? <span className="num" style={{ fontSize: 11 }}>retry in {attempt.delayMs}ms</span> : null}
+                {attempt.delayMs ? <span className="num" style={{ fontSize: 11 }}>{attempt.delayMs}ms 后重试</span> : null}
               </div>
             ))}
           </div>
@@ -431,7 +431,7 @@ function DeliverySection({
 
       <details style={{ marginTop: 12 }}>
         <summary className="label" style={{ cursor: "pointer" }}>
-          What would be sent
+          查看将要同步的数据
         </summary>
         <pre className="payload" style={{ marginTop: 8 }}>
           {JSON.stringify(record.destinationPayload, null, 2)}
@@ -445,6 +445,14 @@ function statusTone(status: string): string {
   if (status === "synced" || status === "approved") return "ok";
   if (status === "sync_failed" || status === "rejected") return "error";
   return "pending";
+}
+
+function statusLabel(status: string): string {
+  return ({ needs_review: "待审核", approved: "已通过", rejected: "已驳回", sync_pending: "待同步", synced: "已同步", sync_failed: "同步失败" } as Record<string, string>)[status] ?? status;
+}
+
+function fieldLabel(path: string, fallback: string): string {
+  return ({ vendorName: "供应商", invoiceNumber: "发票号码", invoiceDate: "开票日期", dueDate: "到期日期", purchaseOrder: "采购单号", currency: "币种", subtotalMinor: "未税金额", taxMinor: "税额", totalMinor: "合计金额" } as Record<string, string>)[path] ?? fallback;
 }
 
 /** Shows minor units as money while keeping the edit field honest about them. */

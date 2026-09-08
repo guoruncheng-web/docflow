@@ -6,6 +6,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -90,12 +91,15 @@ export class DocumentsController {
 
   @Get('documents/:id/file')
   @ApiOperation({
-    summary: 'A short-lived signed URL for the original file',
-    description:
-      'The store is private, so this is minted per request after the caller has been checked, and expires in five minutes.',
+    summary: 'The original file after tenant authorization',
+    description: 'The private file is streamed only after the caller and workspace have been checked.',
   })
-  file(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
-    return this.documents.fileUrl(user.organizationId, id);
+  async file(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
+    const file = await this.documents.file(user.organizationId, id);
+    return new StreamableFile(Buffer.from(file.bytes), {
+      type: file.mimeType,
+      disposition: `inline; filename="${encodeURIComponent(file.filename)}"`,
+    });
   }
 }
 

@@ -55,7 +55,10 @@ export class SamplesService {
       try {
         const manifest = await readFile(join(candidate, 'manifest.json'), 'utf8');
         this.directory = candidate;
-        this.cached = JSON.parse(manifest) as Sample[];
+        this.cached = (JSON.parse(manifest) as Sample[]).map((sample) => ({
+          ...sample,
+          ...(SAMPLE_COPY[sample.slug] ?? {}),
+        }));
         return this.cached;
       } catch {
         continue;
@@ -76,3 +79,12 @@ export class SamplesService {
     return { sample, bytes: new Uint8Array(file) };
   }
 }
+
+const SAMPLE_COPY: Record<string, Pick<Sample, 'title' | 'teaser'>> = {
+  'northwind-clean': { title: '标准票据', teaser: '字段完整、金额一致，可直接进入审核。' },
+  'northwind-duplicate': { title: '重复票据', teaser: '与已上传文件完全相同，用于验证重复检测。' },
+  'atlas-total-mismatch': { title: '金额不一致', teaser: '明细、小计或税额无法与合计金额对应。' },
+  'meridian-foreign-currency': { title: '不支持的币种', teaser: '识别有效，但目标财务系统无法入账。' },
+  'harborline-future-dated': { title: '未来日期', teaser: '开票日期超出规则允许范围，需要人工确认。' },
+  'quill-prompt-injection': { title: '提示词注入', teaser: '票据中包含针对模型的恶意指令，用于验证防护。' },
+};

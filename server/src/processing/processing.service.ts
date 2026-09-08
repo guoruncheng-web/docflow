@@ -175,14 +175,7 @@ export class ProcessingService {
   }
 
   private async fetchBytes(blobKey: string): Promise<Uint8Array> {
-    const url = await this.blob.signedReadUrl(blobKey);
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`The stored document could not be read back (${response.status}).`);
-    }
-
-    return new Uint8Array(await response.arrayBuffer());
+    return this.blob.read(blobKey);
   }
 
   private async validate(

@@ -1,34 +1,21 @@
 import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { del, issueSignedToken, presignUrl, put } from '@vercel/blob';
 
-/**
- * Document storage.
- *
- * The store is private, so an uploaded invoice is not a public URL that outlives
- * the session and can be forwarded, indexed or guessed. Reads are short-lived
- * signed URLs minted per request after the caller's tenancy has been checked,
- * which keeps "who may see this document" an application decision rather than a
- * property of whoever has the link.
- *
- * Keys are prefixed with the organization and carry a random component, so one
- * tenant cannot construct another's key even before signing is considered.
- */
+/** Private filesystem storage used by the mainland deployment. */
 @Injectable()
 export class BlobService {
   private readonly logger = new Logger(BlobService.name);
-  private readonly token: string | undefined;
-
-  /** How long a document link stays valid. Long enough to render, not to share. */
-  private readonly readTtlSeconds = 300;
+  private readonly root: string;
 
   constructor(config: ConfigService) {
-    this.token = config.get<string>('BLOB_READ_WRITE_TOKEN');
+    this.root = resolve(config.get<string>('LOCAL_STORAGE_ROOT') ?? '/data/documents');
   }
 
   get configured(): boolean {
-    return Boolean(this.token);
+    return true;
   }
 
   async upload(input: {
@@ -39,56 +26,33 @@ export class BlobService {
   }): Promise<{ key: string; url: string }> {
     const safeName = input.filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
     const key = `org/${input.organizationId}/${randomUUID()}/${safeName}`;
+    const target = this.pathFor(key);
 
-    const result = await put(key, Buffer.from(input.bytes), {
-      access: 'private',
-      contentType: input.contentType,
-      token: this.token,
-      // The key already carries a UUID; letting the SDK add its own suffix
-      // would mean the stored path is not the one recorded in the database.
-      addRandomSuffix: false,
-    });
-
-    return { key, url: result.url };
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, input.bytes, { mode: 0o600 });
+    return { key, url: `local://${key}` };
   }
 
-  /**
-   * A read URL that expires, minted only after tenancy has been checked.
-   *
-   * Two steps, both scoped as narrowly as the API allows: a delegation limited
-   * to reading this one key for a few minutes, and a URL signed under it. A
-   * store-wide token would work identically here and be a much larger thing to
-   * leak.
-   */
-  async signedReadUrl(key: string): Promise<string> {
-    const validUntil = Date.now() + this.readTtlSeconds * 1000;
-
-    const delegation = await issueSignedToken({
-      token: this.token,
-      pathname: key,
-      operations: ['get'],
-      validUntil,
-    });
-
-    const { presignedUrl } = await presignUrl(delegation, {
-      access: 'private',
-      operation: 'get',
-      pathname: key,
-      validUntil,
-    });
-
-    return presignedUrl;
+  async read(key: string): Promise<Uint8Array> {
+    return new Uint8Array(await readFile(this.pathFor(key)));
   }
 
   async remove(urls: string[]): Promise<void> {
-    if (urls.length === 0) return;
-
-    try {
-      await del(urls, { token: this.token });
-    } catch (error) {
-      // Cleanup failing must not fail the request that triggered it; the
-      // reaper will pass over these again.
-      this.logger.warn(`Could not delete ${urls.length} blob(s): ${(error as Error).message}`);
+    for (const url of urls) {
+      const key = url.startsWith('local://') ? url.slice('local://'.length) : url;
+      try {
+        await rm(this.pathFor(key), { force: true });
+      } catch (error) {
+        this.logger.warn(`Could not delete ${key}: ${(error as Error).message}`);
+      }
     }
+  }
+
+  private pathFor(key: string): string {
+    const target = resolve(join(this.root, key));
+    if (target !== this.root && !target.startsWith(`${this.root}/`)) {
+      throw new Error('Invalid document storage key.');
+    }
+    return target;
   }
 }

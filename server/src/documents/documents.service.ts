@@ -93,16 +93,20 @@ export class DocumentsService {
     return document;
   }
 
-  /** A short-lived link the browser can render the original from. */
-  async fileUrl(organizationId: string, documentId: string): Promise<{ url: string; expiresInSeconds: number }> {
+  /** Bytes are returned only after the caller and tenant have been checked. */
+  async file(organizationId: string, documentId: string) {
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, organizationId },
-      select: { blobKey: true },
+      select: { blobKey: true, filename: true, mimeType: true },
     });
 
     if (!document) throw new NotFoundException('No such document in this workspace.');
 
-    return { url: await this.blob.signedReadUrl(document.blobKey), expiresInSeconds: 300 };
+    return {
+      bytes: await this.blob.read(document.blobKey),
+      filename: document.filename,
+      mimeType: document.mimeType,
+    };
   }
 
   async fromSample(organizationId: string, slug: string) {

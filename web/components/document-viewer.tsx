@@ -15,8 +15,7 @@ import { API_URL, tokenStore } from "@/lib/api";
  * space and scaled with the canvas, so it stays on the words it refers to
  * whatever the window does.
  *
- * The file arrives through a short-lived signed URL minted per request; the
- * store itself is private, so this component never holds a link worth keeping.
+ * The file is streamed only after the API verifies the current workspace.
  */
 
 type Props = {
@@ -58,13 +57,8 @@ export function DocumentViewer({ documentId, highlight, highlightPage }: Props) 
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
-        if (!response.ok) throw new Error("This document could not be opened.");
-        const { url } = (await response.json()) as { url: string };
-
-        const file = await fetch(url);
-        if (!file.ok) throw new Error("The stored file could not be read.");
-
-        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (!response.ok) throw new Error("无法打开这份文档。");
+        const bytes = new Uint8Array(await response.arrayBuffer());
         if (cancelled) return;
 
         const pdf = await pdfjs.getDocument({ data: bytes }).promise;
@@ -152,7 +146,7 @@ export function DocumentViewer({ documentId, highlight, highlightPage }: Props) 
       {status === "loading" && (
         <div className="viewer-empty">
           <Loader2 size={18} className="spin" />
-          <p>Opening the document…</p>
+          <p>正在打开文档…</p>
         </div>
       )}
 
@@ -167,7 +161,7 @@ export function DocumentViewer({ documentId, highlight, highlightPage }: Props) 
 
       {status === "ready" && pageCount > 1 && (
         <p className="label">
-          {pageCount} pages · rendered in your browser, pdf.js {PDFJS_VERSION}
+          共 {pageCount} 页 · 浏览器本地渲染，pdf.js {PDFJS_VERSION}
         </p>
       )}
     </div>
